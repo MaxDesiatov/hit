@@ -26,11 +26,11 @@ public struct Trie {
         self.root = Trie.createTrieFromStrings(strings)
     }
     
-    public func exportTrie() -> [String] {
+    public func export() -> [String] {
         return Trie.pullStringsFromTrie(self.root)
     }
     
-    public func stringsMatchingPrefix(_ prefix: String) -> [String] {
+    public func matchingStrings(prefix: String) -> [String] {
         let normalized = prefix.lowercased()
         if let trieRoot = Trie.findTrieEndingPrefix(normalized, trie: self.root) {
             let strings = Trie.pullStringsFromTrie(trieRoot)

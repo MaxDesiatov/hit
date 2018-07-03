@@ -37,7 +37,7 @@ class HitTestCase : XCTestCase {
         
         let jsonUrl = self.testingBundle().url(forResource: "reviewTestingData", withExtension: "json")
         
-        let data = try Data(contentsOf: jsonUrl!, options: NSData.ReadingOptions())
+        let data = try Data(contentsOf: jsonUrl!, options: Data.ReadingOptions())
         let testingData = try JSONSerialization.jsonObject(with: data, options: JSONSerialization.ReadingOptions()) as! [String: String]
         
         return testingData
@@ -46,7 +46,7 @@ class HitTestCase : XCTestCase {
     func prepTokensForTrieTesting() throws -> [String] {
         let pairs = self.pairify(try self.parseTestingData())
         let index = Index()
-        let indexData = index.createIndexFromRawStringsAndIdentifiers(pairs)
+        let indexData = index.indexData(pairs: pairs)
         let tokens = Array(indexData.keys)
         return tokens
     }

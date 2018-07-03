@@ -21,7 +21,7 @@ class TrieTests: HitTestCase {
         let strings = self.commonWords()
         let trie = Trie(strings: strings)
         
-        let foundStrings = trie.stringsMatchingPrefix("sw")
+        let foundStrings = trie.matchingStrings(prefix: "sw")
         XCTAssert(foundStrings.index(of: "swiftkey") != nil, "Couldn't find 'swiftkey' in results")
         XCTAssert(foundStrings.index(of: "swype") != nil, "Couldn't find 'swiftkey' in results")
     }
@@ -30,7 +30,7 @@ class TrieTests: HitTestCase {
     func testCorrectness_inputOutput() {
         let tokens = try! self.prepTokensForTrieTesting()
         let trie = Trie(strings: tokens)
-        let resultTokens = trie.exportTrie()
+        let resultTokens = trie.export()
         
         for token in tokens {
             if resultTokens.index(of: token) == nil {
@@ -55,7 +55,7 @@ class TrieTests: HitTestCase {
         let trie = Trie(strings: tokens)
 
         self.measure { () -> Void in
-            _ = trie.stringsMatchingPrefix("sw")
+          _ = trie.matchingStrings(prefix: "sw")
         }
     }
     
@@ -63,7 +63,7 @@ class TrieTests: HitTestCase {
         let strings = self.commonWords()
         let trie = Trie(strings: strings)
         
-        let foundStrings = Set(trie.stringsMatchingPrefix("s"))
+        let foundStrings = Set(trie.matchingStrings(prefix: "s"))
         XCTAssertEqual(foundStrings.count, 3)
         XCTAssert(foundStrings.contains("swiftkey"))
         XCTAssert(foundStrings.contains("swype"))

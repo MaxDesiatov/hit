@@ -36,10 +36,9 @@ class IndexTests: HitTestCase {
         
         let exp = self.expectation(description: "index search")
 
-        index.updateIndexFromRawStringsAndIdentifiers(pairs, save: false) {
-            
+        index.update(pairs: pairs, save: false) {
             //now, examine the index
-            index.occurencesOfToken("SwiftKey", completion: { (tokenIndexData) -> () in
+            index.occurences(token: "SwiftKey", completion: { (tokenIndexData) -> () in
                 
                 guard let tokenIndexData = tokenIndexData else {
                     XCTFail("No token index data was found")
@@ -87,7 +86,7 @@ class IndexTests: HitTestCase {
             let index = Index()
             let pairs = self.pairify(data)
             let exp = self.expectation(description: "updated")
-            index.updateIndexFromRawStringsAndIdentifiers(pairs, save: false, completion: { () -> () in
+            index.update(pairs: pairs, save: false, completion: { () -> () in
                 exp.fulfill()
             })
             self.waitForExpectations(timeout: 10, handler: nil)
@@ -100,7 +99,7 @@ class IndexTests: HitTestCase {
         let pairs = self.pairify(data)
         let index = Index()
         
-        let indices = index.createIndicesFromRawStringsAndIdentifiers(pairs)
+        let indices = index.rawIndexData(pairs: pairs)
         
         var merged_reduce: Index.IndexData?
         autoreleasepool { () -> () in
@@ -114,10 +113,7 @@ class IndexTests: HitTestCase {
             merged_binary = index.binaryMerge(indices)
         }
         
-        //must equal
-        let equal = isIndexDataEqualToIndexData(merged_binary!, rhs: merged_reduce!)
-        
-        XCTAssert(equal, "Both must give the same results! Binary: \(merged_binary!), Reduce: \(merged_reduce!)")
+        XCTAssertEqual(merged_binary, merged_reduce, "Both must give the same results! Binary: \(merged_binary!), Reduce: \(merged_reduce!)")
     }
     
     func testPerformance_indexMerging_reduce() {
@@ -126,7 +122,7 @@ class IndexTests: HitTestCase {
         let pairs = self.pairify(data)
         let index = Index()
 
-        let indices = index.createIndicesFromRawStringsAndIdentifiers(pairs)
+        let indices = index.rawIndexData(pairs: pairs)
         
         self.measure { () -> Void in
             
@@ -140,7 +136,7 @@ class IndexTests: HitTestCase {
         let pairs = self.pairify(data)
         let index = Index()
         
-        let indices = index.createIndicesFromRawStringsAndIdentifiers(pairs)
+        let indices = index.rawIndexData(pairs: pairs)
         
         self.measure { () -> Void in
             
@@ -154,11 +150,11 @@ class IndexTests: HitTestCase {
         let index = Index()
         
         let exp = self.expectation(description: "updated")
-        index.updateIndexFromRawStringsAndIdentifiers(pairs, save: false, completion: {
+        index.update(pairs: pairs, save: false, completion: {
             
             //try to search for swiftkey by typing "sw"
             
-            let results = index.prefixSearch("sw")
+            let results = index.search(prefix: "sw")
             let resultsMap = self.mapify(results)
             
             let expected = ["swipe", "swype", "swiping", "swiftkey", "switched", "switch"]

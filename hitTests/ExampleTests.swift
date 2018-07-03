@@ -26,10 +26,10 @@ class ExampleTests: HitTestCase {
         let index = Index()
         
         //feed it your data
-        index.updateIndexFromRawStringsAndIdentifiers(quotes, save: false)
+        index.update(pairs: quotes, save: false)
         
         //search for stuff!
-        _ = index.prefixSearch("scar")
+        _ = index.search(prefix: "scar")
         /*
         *   -> 2 results : [
         *                       "scary" -> [ "Sarah" : Range(34..<39) ],
@@ -37,5 +37,4 @@ class ExampleTests: HitTestCase {
         *                  ]
         */
     }
-    
 }
