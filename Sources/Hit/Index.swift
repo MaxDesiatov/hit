@@ -98,19 +98,16 @@ open class Index {
 
     // try to hide the stuff below for testing eyes only
 
-    // TODO: add an enum with a sort type - by Total Occurences, Length, Unique Review Occurences, ...
+    // TODO: add an enum with a sort type - by Total Occurrences, Length, Unique Review Occurrences, ...
     open func prefixSearch(_ prefix: String) -> [TokenIndexPair] {
         let normalizedPrefix = normalizedToken(prefix)
         if normalizedPrefix.count < 2 {
             return [TokenIndexPair]() // don't return results under three chars (0, 1, 2).
         }
 
-        // create a list of tokens from prefix
-        let (indexData, trieData) = threadSafeGetStorage()
-
         // filter the keys that match the prefix
         // we're using a fast trie here
-        let filtered = trieData.strings(matching: normalizedPrefix)
+        let filtered = trieStorage.strings(matching: normalizedPrefix)
 
         // now sort them by length (I think that makes sense for prefix search - shortest match is the best)
         // if two are of the same length, sort those two alphabetically
@@ -129,7 +126,7 @@ open class Index {
         // now fetch index metadata for all the matches and return
         // TODO: count limiting?
 
-        let result = sortedByLength.map { (token: $0, data: indexData[$0]!) }
+        let result = sortedByLength.map { (token: $0, data: indexStorage[$0]!) }
         return result
     }
 
@@ -147,19 +144,15 @@ open class Index {
     }
 
     private func threadSafeGetStorage() -> (index: IndexData, trie: Trie) {
-        objc_sync_enter(self)
         let indexStorage = self.indexStorage
         let trieStorage = self.trieStorage
-        objc_sync_exit(self)
         return (indexStorage, trieStorage)
     }
 
     public typealias ViewTokenCount = (token: String, count: Int)
 
-    // aka number of occurences total
-    open func viewOfTokensSortedByNumberOfOccurences() -> [ViewTokenCount] {
-        let (indexStorage, _) = threadSafeGetStorage()
-
+    // aka number of occurrences total
+    open func viewOfTokensSortedByNumberOfOccurrences() -> [ViewTokenCount] {
         var view = [ViewTokenCount]()
 
         for (token, tokenIndexData) in indexStorage {
@@ -171,14 +164,14 @@ open class Index {
             view.append((token: token, count: rollingCount))
         }
 
-        // sort by number of occurences
+        // sort by number of occurrences
         view.sort { $0.count >= $1.count }
 
         return view
     }
 
     // aka number of reviews mentioning this word (doesn't matter how many times in one review)
-    open func viewOfTokensSortedByNumberOfUniqueIdentifierOccurences() -> [ViewTokenCount] {
+    open func viewOfTokensSortedByNumberOfUniqueIdentifierOccurrences() -> [ViewTokenCount] {
         objc_sync_enter(self)
         let indexStorage = self.indexStorage
         objc_sync_exit(self)
@@ -191,7 +184,7 @@ open class Index {
             view.append((token: token, count: tokenCharCount))
         }
 
-        // sort by number of occurences
+        // sort by number of occurrences
         view.sort { $0.count >= $1.count }
 
         return view
@@ -280,7 +273,6 @@ open class Index {
     // this allows us to have multithreaded indexing and only at the end modify shared state :)
     private func mergeNewDataIn(_ newData: IndexData, save: Bool) {
         // merge these two structures together and keep the result
-        objc_sync_enter(self)
         indexStorage = mergeIndexData(indexStorage, two: newData)
 
         // recreate the Trie (TODO: don't recreate the whole thing, make it easier to append to the existing Trie)
@@ -289,7 +281,6 @@ open class Index {
         if save {
             self.save()
         }
-        objc_sync_exit(self)
     }
 
     private func normalizedToken(_ found: String) -> String {
