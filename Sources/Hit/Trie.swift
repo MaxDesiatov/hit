@@ -25,9 +25,63 @@ struct TrieNode {
             return result
         }
     }
+
+    var strings: [String] {
+        let subNodes = Array(subNodes.values)
+
+        // get substrings of `subNodes`
+        var substrings = subNodes.map { (subNode: TrieNode) -> [String] in
+            let substrings = subNode.strings
+            // prepend our token to each
+            let withToken = substrings.map { token + $0 }
+            return withToken
+        }.reduce([String]()) { rolling, item -> [String] in // flatten [[String]] to [String]
+            rolling + item
+        }
+
+        if endsWord {
+            // also add a new string ending with this token
+            substrings.append(token)
+        }
+
+        return substrings
+    }
+
+    func findTrieEndingPrefix(_ prefix: String) -> TrieNode? {
+        let length = prefix.count
+        assert(length > 0, "Invalid arg: cannot be empty string")
+
+        let prefixHeadRange = (prefix.startIndex..<prefix.index(prefix.startIndex, offsetBy: 1))
+        let prefixHead = prefix[prefixHeadRange]
+        let emptyTrie = token.count == 0
+
+        if length == 1 && !emptyTrie {
+            // potentially might be found if trie matches
+            let match = (token == prefixHead)
+            return match ? self : nil
+        }
+
+        let tokenMatches = token == prefixHead
+        if emptyTrie || tokenMatches {
+            // compute tail - the whole prefix if this was an empty trie
+            let prefixTail = emptyTrie ? prefix : String(prefix[prefixHeadRange.upperBound...])
+
+            // look into `subNodes`
+            for subNode in subNodes.values {
+                if let foundSubNode = subNode.findTrieEndingPrefix(prefixTail) {
+                    return foundSubNode
+                }
+            }
+        }
+        return nil
+    }
 }
 
 extension TrieNode {
+    init() {
+        self.init(token: "", endsWord: false, subNodes: SubTries())
+    }
+
     init(_ string: String) {
         let headRange = (string.startIndex..<string.index(string.startIndex, offsetBy: 1))
         let head = String(string[headRange])
@@ -58,7 +112,7 @@ extension TrieNode {
         }
 
         // now merge them
-        self = triesWithRoots.reduce(into: Trie.emptyTrie()) { (rollingTrie: inout TrieNode, thisTrie) in
+        self = triesWithRoots.reduce(into: TrieNode()) { (rollingTrie: inout TrieNode, thisTrie) in
             rollingTrie.merge(with: thisTrie)
         }
     }
@@ -73,13 +127,13 @@ public struct Trie {
     }
 
     public func exportTrie() -> [String] {
-        Trie.pullStringsFromTrie(root)
+        root.strings
     }
 
     public func strings(matching prefix: String) -> [String] {
         let normalized = prefix.lowercased()
-        if let trieRoot = Trie.findTrieEndingPrefix(normalized, trie: root) {
-            let strings = Trie.pullStringsFromTrie(trieRoot)
+        if let trieRoot = root.findTrieEndingPrefix(normalized) {
+            let strings = trieRoot.strings
             let stringsWithPrefix = strings.map { (s: String) -> String in
                 // here we take the last char out of the prefix, because it's already contained
                 // in the found trie.
@@ -88,66 +142,6 @@ public struct Trie {
             return stringsWithPrefix
         }
         return [String]()
-    }
-
-    static func findTrieEndingPrefix(_ prefix: String, trie: TrieNode) -> TrieNode? {
-        let length = prefix.count
-        assert(length > 0, "Invalid arg: cannot be empty string")
-
-        let prefixHeadRange = (prefix.startIndex..<prefix.index(prefix.startIndex, offsetBy: 1))
-        let prefixHead = prefix[prefixHeadRange]
-        let emptyTrie = trie.token.count == 0
-
-        if length == 1 && !emptyTrie {
-            // potentially might be found if trie matches
-            let match = (trie.token == prefixHead)
-            return match ? trie : nil
-        }
-
-        let tokenMatches = trie.token == prefixHead
-        if emptyTrie || tokenMatches {
-            // compute tail - the whole prefix if this was an empty trie
-            let prefixTail = emptyTrie ? prefix : String(prefix[prefixHeadRange.upperBound...])
-
-            // look into `subNodes`
-            for subNode in trie.subNodes.values {
-                if let foundSubNode = Trie.findTrieEndingPrefix(prefixTail, trie: subNode) {
-                    return foundSubNode
-                }
-            }
-        }
-        return nil
-    }
-
-    static func pullStringsFromTrie(_ trie: TrieNode) -> [String] {
-        let token = trie.token
-        let subNodes = Array(trie.subNodes.values)
-        let endsWord = trie.endsWord
-
-        // get substrings of `subNodes`
-        var substrings = subNodes.map { (subnode: TrieNode) -> [String] in
-            let substrings = Trie.pullStringsFromTrie(subnode)
-            // prepend our token to each
-            let withToken = substrings.map { token + $0 }
-            return withToken
-        }.reduce([String]()) { rolling, item -> [String] in // flatten [[String]] to [String]
-            rolling + item
-        }
-
-        if endsWord {
-            // also add a new string ending with this token
-            substrings.append(token)
-        }
-
-        return substrings
-    }
-
-    static func leafTrie(_ token: String) -> TrieNode {
-        TrieNode(token: token, endsWord: true, subNodes: SubTries())
-    }
-
-    static func emptyTrie() -> TrieNode {
-        TrieNode(token: "", endsWord: false, subNodes: SubTries())
     }
 
     // TODO: we learned in indexing that binary merge is much better than a rolling reduce

@@ -11,10 +11,6 @@ import Foundation
 import XCTest
 
 class HitTestCase: XCTestCase {
-    func testingBundle() -> Bundle {
-        Bundle(for: type(of: self))
-    }
-
     func pairify(_ data: [String: String]) -> [Index.InputPair] {
         var pairs = [Index.InputPair]()
         for (identifier, content) in data {
