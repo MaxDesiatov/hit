@@ -53,18 +53,18 @@ struct TrieNode {
 
         let prefixHeadRange = (prefix.startIndex..<prefix.index(prefix.startIndex, offsetBy: 1))
         let prefixHead = prefix[prefixHeadRange]
-        let emptyTrie = token.count == 0
+        let isEmpty = token.isEmpty
 
-        if length == 1 && !emptyTrie {
+        if length == 1 && !isEmpty {
             // potentially might be found if trie matches
             let match = (token == prefixHead)
             return match ? self : nil
         }
 
         let tokenMatches = token == prefixHead
-        if emptyTrie || tokenMatches {
+        if isEmpty || tokenMatches {
             // compute tail - the whole prefix if this was an empty trie
-            let prefixTail = emptyTrie ? prefix : String(prefix[prefixHeadRange.upperBound...])
+            let prefixTail = isEmpty ? prefix : String(prefix[prefixHeadRange.upperBound...])
 
             // look into `subNodes`
             for subNode in subNodes.values {
