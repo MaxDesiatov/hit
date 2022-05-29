@@ -30,7 +30,7 @@ import Foundation
  The indexing itself will run in a map-reduce manner - indexing will run in multiple jobs
  and only when done we merge all results into the new index.
  */
-open class Index {
+final class Index {
     public typealias InputPair = (string: String, identifier: String)
     public typealias TokenRange = Range<String.Index>
     public typealias TokenRangeArray = [TokenRange] // MUST be sorted in ascending order
@@ -40,66 +40,29 @@ open class Index {
 
     private var indexStorage: IndexData = [:]
     private var trieStorage: Trie = .init(strings: [String]())
-    private let operationQueue: OperationQueue
 
-    public init() {
-        operationQueue = OperationQueue()
-
-        // load from storage
-        load()
-    }
-
-    private func load() -> Bool {
-        // TODO: load from disk here
-        return true
-    }
-
-    private func save() -> Bool {
-        // TODO: save to disk here
-        return true
-    }
+    public init() {}
 
     // PUBLIC API
 
-    open func occurrencesOfToken(_ token: String, completion: @escaping (_ result: TokenIndexData?) -> ()) {
-        let normalizedToken = self.normalizedToken(token)
-        operationQueue.addOperation { () in
-            let result = self.indexStorage[normalizedToken]
-            completion(result)
-        }
+    public func occurrencesOfToken(_ token: String) -> TokenIndexData? {
+        indexStorage[normalizedToken(token)]
     }
 
-    open func occurrencesOfTokensWithPrefix(
-        _ prefix: String,
-        completion: @escaping (_ result: [TokenIndexPair]) -> ()
-    ) {
-        operationQueue.addOperation { () in
-            let result = self.prefixSearch(prefix)
-            completion(result)
-        }
-    }
-
-    open func updateIndexFromRawStringsAndIdentifiers(
-        _ pairs: [InputPair],
-        save: Bool,
-        completion: @escaping (() -> ())
-    ) {
-        operationQueue.addOperation { () in
-            self.updateIndexFromRawStringsAndIdentifiers(pairs, save: save)
-            completion()
-        }
+    public func occurrencesOfTokensWithPrefix(_ prefix: String) -> [TokenIndexPair] {
+        prefixSearch(prefix)
     }
 
     // returns when done, synchronous version
-    open func updateIndexFromRawStringsAndIdentifiers(_ pairs: [InputPair], save: Bool) {
+    public func updateIndexFromRawStringsAndIdentifiers(_ pairs: [InputPair]) {
         let newIndex = createIndexFromRawStringsAndIdentifiers(pairs)
-        mergeNewDataIn(newIndex, save: save)
+        mergeNewDataIn(newIndex)
     }
 
     // try to hide the stuff below for testing eyes only
 
     // TODO: add an enum with a sort type - by Total Occurrences, Length, Unique Review Occurrences, ...
-    open func prefixSearch(_ prefix: String) -> [TokenIndexPair] {
+    public func prefixSearch(_ prefix: String) -> [TokenIndexPair] {
         let normalizedPrefix = normalizedToken(prefix)
         if normalizedPrefix.count < 2 {
             return [TokenIndexPair]() // don't return results under three chars (0, 1, 2).
@@ -130,13 +93,13 @@ open class Index {
         return result
     }
 
-    open func createIndexFromRawStringsAndIdentifiers(_ pairs: [InputPair]) -> IndexData {
+    public func createIndexFromRawStringsAndIdentifiers(_ pairs: [InputPair]) -> IndexData {
         let flattened = createIndicesFromRawStringsAndIdentifiers(pairs)
         let merged = binaryMerge(flattened)
         return merged
     }
 
-    open func createIndicesFromRawStringsAndIdentifiers(_ pairs: [InputPair]) -> [IndexData] {
+    public func createIndicesFromRawStringsAndIdentifiers(_ pairs: [InputPair]) -> [IndexData] {
         let flattened = pairs.reduce([IndexData]()) { arr, item -> [IndexData] in
             arr + self.createIndicesFromRawString(item.string, identifier: item.identifier)
         }
@@ -152,7 +115,7 @@ open class Index {
     public typealias ViewTokenCount = (token: String, count: Int)
 
     // aka number of occurrences total
-    open func viewOfTokensSortedByNumberOfOccurrences() -> [ViewTokenCount] {
+    public func viewOfTokensSortedByNumberOfOccurrences() -> [ViewTokenCount] {
         var view = [ViewTokenCount]()
 
         for (token, tokenIndexData) in indexStorage {
@@ -171,11 +134,7 @@ open class Index {
     }
 
     // aka number of reviews mentioning this word (doesn't matter how many times in one review)
-    open func viewOfTokensSortedByNumberOfUniqueIdentifierOccurrences() -> [ViewTokenCount] {
-        objc_sync_enter(self)
-        let indexStorage = self.indexStorage
-        objc_sync_exit(self)
-
+    public func viewOfTokensSortedByNumberOfUniqueIdentifierOccurrences() -> [ViewTokenCount] {
         var view = [ViewTokenCount]()
 
         for (token, tokenIndexData) in indexStorage {
@@ -190,35 +149,46 @@ open class Index {
         return view
     }
 
-    open func createIndicesFromRawString(_ string: String, identifier: String) -> [IndexData] {
+    public func createIndicesFromRawString(_ string: String, identifier: String) -> [IndexData] {
         // iterate through the string
         var newIndices = [IndexData]()
 
-        let range = string.startIndex..<string.endIndex
-        let options = String.EnumerationOptions([.localized, .byWords])
-        string.enumerateSubstrings(in: range, options: options) { substring, substringRange, _, _ in
+        var substrings = [(Substring, Range<String.Index>)]()
 
-            guard let substring = substring else { return }
+        let stringRange = string.startIndex..<string.endIndex
+        var remainingSubstring = string[stringRange]
 
+        while let nextSpace = remainingSubstring.firstIndex(of: " ") {
+            let range = remainingSubstring.startIndex..<nextSpace
+            defer { remainingSubstring = string[string.index(after: nextSpace)..<string.endIndex] }
+
+            guard !string[range].isEmpty else { continue }
+
+            substrings.append((string[range], range))
+        }
+
+        substrings.append((remainingSubstring, remainingSubstring.startIndex..<remainingSubstring.endIndex))
+
+        for (substring, substringRange) in substrings {
             // enumerating over tokens (words) and update index from each
-            let newIndexData = self.createIndexFromToken(substring, range: substringRange, identifier: identifier)
+            let newIndexData = createIndexFromToken(substring, range: substringRange, identifier: identifier)
             newIndices.append(newIndexData)
         }
         return newIndices
     }
 
-    open func createIndexFromRawString(_ string: String, identifier: String) -> IndexData {
+    public func createIndexFromRawString(_ string: String, identifier: String) -> IndexData {
         let newIndices = createIndicesFromRawString(string, identifier: identifier)
 
         // TODO: measure and multithread
 
-        // merge all those indices for each occurence into one index
+        // merge all those indices for each occurrence into one index
         let reduced = binaryMerge(newIndices)
 
         return reduced
     }
 
-    open func reduceMerge(_ indexDataArray: [IndexData]) -> IndexData {
+    public func reduceMerge(_ indexDataArray: [IndexData]) -> IndexData {
         // ok, now we have an array of new indices, merge them into one and return
         // This was pretty slow due to the first index getting large towards the end
         let reduced = indexDataArray.reduce(IndexData()) { bigIndex, newIndex -> IndexData in
@@ -230,7 +200,7 @@ open class Index {
     /**
      Merges index data in pairs instead of having one big rolling index that every new one is merged with.
      */
-    open func binaryMerge(_ indexDataArray: [IndexData]) -> IndexData {
+    public func binaryMerge(_ indexDataArray: [IndexData]) -> IndexData {
         // termination condition 1
         if indexDataArray.count == 1 {
             return indexDataArray.first!
@@ -243,7 +213,7 @@ open class Index {
 
         var newIndexDataArray = [IndexData]()
 
-        // go through and merge in neightboring pairs
+        // go through and merge in neighbouring pairs
         var temp = [IndexData]()
         for i in 0..<indexDataArray.count {
             let second = temp.count == 1
@@ -257,7 +227,7 @@ open class Index {
             }
         }
 
-        // if the cound was odd, we have the last item unmerged with anyone, just add at the end of the new array
+        // if the count was odd, we have the last item unmerged with anyone, just add at the end of the new array
         if indexDataArray.count % 2 == 1 {
             newIndexDataArray.append(indexDataArray.last!)
         }
@@ -265,27 +235,28 @@ open class Index {
         return binaryMerge(newIndexDataArray)
     }
 
-    private func createIndexFromToken(_ token: String, range: TokenRange, identifier: String) -> IndexData {
+    private func createIndexFromToken(_ token: Substring, range: TokenRange, identifier: String) -> IndexData {
         let normalizedToken = self.normalizedToken(token)
         return [normalizedToken: [identifier: [range]]]
     }
 
     // this allows us to have multithreaded indexing and only at the end modify shared state :)
-    private func mergeNewDataIn(_ newData: IndexData, save: Bool) {
+    private func mergeNewDataIn(_ newData: IndexData) {
         // merge these two structures together and keep the result
         indexStorage = mergeIndexData(indexStorage, two: newData)
 
         // recreate the Trie (TODO: don't recreate the whole thing, make it easier to append to the existing Trie)
         trieStorage = Trie(strings: Array(indexStorage.keys))
+    }
 
-        if save {
-            self.save()
-        }
+    private func normalizedToken(_ found: Substring) -> String {
+        // just lowercase
+        found.lowercased()
     }
 
     private func normalizedToken(_ found: String) -> String {
         // just lowercase
-        return found.lowercased()
+        found.lowercased()
     }
 }
 
@@ -313,24 +284,16 @@ public func isDictionaryEqualToDictionary<Key, Value>(
     return (true, nil)
 }
 
-public func isIndexDataEqualToIndexData(_ lhs: Index.IndexData, rhs: Index.IndexData) -> Bool {
-    let (equal, _) = isDictionaryEqualToDictionary(lhs, rhs: rhs) { lhsIn, rhsIn -> Bool in
-        let (equalIn, _) = isDictionaryEqualToDictionary(lhsIn, rhs: rhsIn, compareValues: ==)
-        return equalIn
-    }
-    return equal
-}
-
 // merging
 private extension Index {
     func mergeIndexData(_ one: IndexData, two: IndexData) -> IndexData {
-        return Dictionary.merge(one, two: two, merge: { one, two -> TokenIndexData in
+        Dictionary.merge(one, two: two, merge: { one, two -> TokenIndexData in
             self.mergeTokenIndexData(one, two: two)
         })
     }
 
     func mergeTokenIndexData(_ one: TokenIndexData, two: TokenIndexData) -> TokenIndexData {
-        return Dictionary.merge(one, two: two, merge: { one, two -> TokenRangeArray in
+        Dictionary.merge(one, two: two, merge: { one, two -> TokenRangeArray in
             self.mergeTokenRangeArrays(one, two: two)
         })
     }

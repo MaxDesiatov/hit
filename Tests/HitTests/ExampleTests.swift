@@ -12,7 +12,7 @@ import Foundation
 import XCTest
 
 class ExampleTests: HitTestCase {
-    func testReadmeExample() {
+    func testReadmeExample() throws {
         let quotes = [
             (string: "Hasta la Pizza, baby", identifier: "Dino"),
             (string: "Sorry I'm late, my car aborted half way to work", identifier: "Rob"),
@@ -24,7 +24,7 @@ class ExampleTests: HitTestCase {
         let index = Index()
 
         // feed it your data
-        index.updateIndexFromRawStringsAndIdentifiers(quotes, save: false)
+        index.updateIndexFromRawStringsAndIdentifiers(quotes)
 
         // search for stuff!
         _ = index.prefixSearch("scar")

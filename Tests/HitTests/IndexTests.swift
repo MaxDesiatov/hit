@@ -19,7 +19,7 @@ class IndexTests: HitTestCase {
         return range
     }
 
-    func testCreatingIndex() {
+    func testCreatingIndex() throws {
         let string1 =
             """
             Hello world how is your app SwiftKey doing?I hope well! Because it's surprisingly great!
@@ -36,44 +36,37 @@ class IndexTests: HitTestCase {
             (string: string2, identifier: identifier2),
         ]
 
-        let exp = expectation(description: "index search")
+        index.updateIndexFromRawStringsAndIdentifiers(pairs)
 
-        index.updateIndexFromRawStringsAndIdentifiers(pairs, save: false) {
-            // now, examine the index
-            index.occurrencesOfToken("SwiftKey", completion: { tokenIndexData in
+        // now, examine the index
+        let tokenIndexData = index.occurrencesOfToken("SwiftKey")
 
-                guard let tokenIndexData = tokenIndexData else {
-                    XCTFail("No token index data was found")
-                    return
-                }
-
-                XCTAssertEqual(tokenIndexData.values.count, 2, "Should have occured in 2 identifiers")
-
-                if let ranges = tokenIndexData["review1"] {
-                    // should be sorted
-                    let targetRange1 = self.rangeFromString(string1, start: 28, count: 8)
-                    let targetRange2 = self.rangeFromString(string1, start: 107, count: 8)
-                    XCTAssertEqual(ranges[0], targetRange1, "Ranges must equal")
-                    XCTAssertEqual(ranges[1], targetRange2, "Ranges must equal")
-
-                } else {
-                    XCTFail("No ranges data for identifier review1")
-                }
-
-                if let ranges = tokenIndexData["review2"] {
-                    // should be sorted
-                    let targetRange = self.rangeFromString(string2, start: 21, count: 8)
-                    XCTAssertEqual(ranges[0], targetRange, "Ranges must equal")
-
-                } else {
-                    XCTFail("No ranges data for identifier review2")
-                }
-
-                exp.fulfill()
-            })
+        guard let tokenIndexData = tokenIndexData else {
+            XCTFail("No token index data was found")
+            return
         }
 
-        waitForExpectations(timeout: 10, handler: nil)
+        XCTAssertEqual(tokenIndexData.values.count, 2, "Should have occured in 2 identifiers")
+
+        if let ranges = tokenIndexData["review1"] {
+            // should be sorted
+            let targetRange1 = rangeFromString(string1, start: 28, count: 8)
+            let targetRange2 = rangeFromString(string1, start: 107, count: 8)
+            XCTAssertEqual(ranges[0], targetRange1, "Ranges must equal")
+            XCTAssertEqual(ranges[1], targetRange2, "Ranges must equal")
+
+        } else {
+            XCTFail("No ranges data for identifier review1")
+        }
+
+        if let ranges = tokenIndexData["review2"] {
+            // should be sorted
+            let targetRange = rangeFromString(string2, start: 21, count: 8)
+            XCTAssertEqual(ranges[0], targetRange, "Ranges must equal")
+
+        } else {
+            XCTFail("No ranges data for identifier review2")
+        }
     }
 
     // watch out - this might take minutes, runs the whole thing 10 times and the data is pretty large
@@ -81,14 +74,10 @@ class IndexTests: HitTestCase {
     func testPerformance_fullIndexCreation() throws {
         let data = try parseTestingData()
 
-        measure { () in
-            let index = Index()
+        measure {
+            guard let index = try? Index() else { return }
             let pairs = self.pairify(data)
-            let exp = self.expectation(description: "updated")
-            index.updateIndexFromRawStringsAndIdentifiers(pairs, save: false, completion: { () in
-                exp.fulfill()
-            })
-            self.waitForExpectations(timeout: 10, handler: nil)
+            index.updateIndexFromRawStringsAndIdentifiers(pairs)
         }
     }
 
@@ -99,22 +88,7 @@ class IndexTests: HitTestCase {
 
         let indices = index.createIndicesFromRawStringsAndIdentifiers(pairs)
 
-        var merged_reduce: Index.IndexData?
-        autoreleasepool { () in
-            // reduce
-            merged_reduce = index.reduceMerge(indices)
-        }
-
-        var merged_binary: Index.IndexData?
-        autoreleasepool { () in
-            // binary
-            merged_binary = index.binaryMerge(indices)
-        }
-
-        // must equal
-        let equal = isIndexDataEqualToIndexData(merged_binary!, rhs: merged_reduce!)
-
-        XCTAssert(equal, "Both must give the same results! Binary: \(merged_binary!), Reduce: \(merged_reduce!)")
+        XCTAssertEqual(index.reduceMerge(indices), index.binaryMerge(indices))
     }
 
     func testPerformance_indexMerging_reduce() throws {
@@ -125,7 +99,6 @@ class IndexTests: HitTestCase {
         let indices = index.createIndicesFromRawStringsAndIdentifiers(pairs)
 
         measure { () in
-
             _ = index.reduceMerge(indices)
         }
     }
@@ -147,32 +120,26 @@ class IndexTests: HitTestCase {
         let pairs = pairify(try parseTestingData())
         let index = Index()
 
-        let exp = expectation(description: "updated")
-        index.updateIndexFromRawStringsAndIdentifiers(pairs, save: false, completion: {
-            // try to search for swiftkey by typing "sw"
+        index.updateIndexFromRawStringsAndIdentifiers(pairs)
 
-            let results = index.prefixSearch("sw")
-            let resultsMap = self.mapify(results)
+        // try to search for swiftkey by typing "sw"
+        let results = index.prefixSearch("sw")
+        let resultsMap = mapify(results)
 
-            let expected = ["swipe", "swype", "swiping", "swiftkey", "switched", "switch"]
+        let expected = ["swipe", "swype", "swiping", "swiftkey", "swiftkey,", "switched", "switch"]
 
-            if results.count != expected.count {
-                XCTFail("Mismatch of count. Expected: \(expected), Received: \(Array(resultsMap.keys))")
-            } else {
-                for expectedToken in expected {
-                    if resultsMap[expectedToken] == nil {
-                        // fail
-                        XCTFail(
-                            "Mismatch of expected and received results, didn't find expected token: \(expectedToken)"
-                        )
-                    }
+        if results.count != expected.count {
+            XCTFail("Mismatch of count. Expected: \(expected), Received: \(Array(resultsMap.keys))")
+        } else {
+            for expectedToken in expected {
+                if resultsMap[expectedToken] == nil {
+                    // fail
+                    XCTFail(
+                        "Mismatch of expected and received results, didn't find expected token: \(expectedToken)"
+                    )
                 }
             }
-
-            // if it went through, we're all good
-            exp.fulfill()
-        })
-        waitForExpectations(timeout: 10, handler: nil)
+        }
     }
 
     // utils

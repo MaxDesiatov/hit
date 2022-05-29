@@ -9,4 +9,4 @@
 --wraparguments before-first
 --funcattributes prev-line
 --disable andOperator
---swiftversion 4.1
+--swiftversion 5.1

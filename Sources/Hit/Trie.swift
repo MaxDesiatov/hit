@@ -73,7 +73,7 @@ public struct Trie {
     }
 
     public func exportTrie() -> [String] {
-        return Trie.pullStringsFromTrie(root)
+        Trie.pullStringsFromTrie(root)
     }
 
     public func strings(matching prefix: String) -> [String] {
@@ -143,11 +143,11 @@ public struct Trie {
     }
 
     static func leafTrie(_ token: String) -> TrieNode {
-        return TrieNode(token: token, endsWord: true, subNodes: SubTries())
+        TrieNode(token: token, endsWord: true, subNodes: SubTries())
     }
 
     static func emptyTrie() -> TrieNode {
-        return TrieNode(token: "", endsWord: false, subNodes: SubTries())
+        TrieNode(token: "", endsWord: false, subNodes: SubTries())
     }
 
     // TODO: we learned in indexing that binary merge is much better than a rolling reduce

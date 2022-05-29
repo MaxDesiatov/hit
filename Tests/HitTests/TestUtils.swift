@@ -7,12 +7,12 @@
 //
 
 import Foundation
-import Hit
+@testable import Hit
 import XCTest
 
 class HitTestCase: XCTestCase {
     func testingBundle() -> Bundle {
-        return Bundle(for: type(of: self))
+        Bundle(for: type(of: self))
     }
 
     func pairify(_ data: [String: String]) -> [Index.InputPair] {
