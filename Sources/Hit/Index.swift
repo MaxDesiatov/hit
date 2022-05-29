@@ -260,42 +260,18 @@ final class Index {
     }
 }
 
-public func isDictionaryEqualToDictionary<Key, Value>(
-    _ lhs: [Key: Value],
-    rhs: [Key: Value],
-    compareValues: (_ lhs: Value, _ rhs: Value) -> Bool
-) -> (Bool, (key: Key, values: [Value?])?) {
-    if lhs.count != rhs.count {
-        return (false, nil)
-    }
-
-    // keys are the same, we have to go through them one by one
-    for (key, value) in lhs {
-        if let rightValue = rhs[key] {
-            if compareValues(value, rightValue) {
-                // keeping your hopes up, still might be equal
-                continue
-            }
-        }
-
-        // returns the first offender of equality
-        return (false, (key: key, [value, rhs[key]]))
-    }
-    return (true, nil)
-}
-
 // merging
 private extension Index {
     func mergeIndexData(_ one: IndexData, two: IndexData) -> IndexData {
-        Dictionary.merge(one, two: two, merge: { one, two -> TokenIndexData in
-            self.mergeTokenIndexData(one, two: two)
-        })
+        one.merging(two) {
+            self.mergeTokenIndexData($0, two: $1)
+        }
     }
 
     func mergeTokenIndexData(_ one: TokenIndexData, two: TokenIndexData) -> TokenIndexData {
-        Dictionary.merge(one, two: two, merge: { one, two -> TokenRangeArray in
+        one.merging(two) { one, two -> TokenRangeArray in
             self.mergeTokenRangeArrays(one, two: two)
-        })
+        }
     }
 
     func mergeTokenRangeArrays(_ one: TokenRangeArray, two: TokenRangeArray) -> TokenRangeArray {
@@ -307,46 +283,18 @@ private extension Index {
         let sorted = both.sorted { $0.lowerBound <= $1.lowerBound }
 
         // 3. remove duplicates
-        let result = sorted.reduce(TokenRangeArray()) { arr, range -> TokenRangeArray in
-            if let last = arr.last {
+        let result = sorted.reduce(TokenRangeArray()) { array, range -> TokenRangeArray in
+            if let last = array.last {
                 if last == range {
                     // we already have this range, don't add it again
-                    return arr
+                    return array
                 }
             }
 
             // haven't seen this range before, add it
-            return arr + [range]
+            return array + [range]
         }
 
         return result
-    }
-}
-
-extension Dictionary {
-    static func merge(
-        _ one: [Key: Value],
-        two: [Key: Value],
-        merge: (_ one: Value, _ two: Value) -> Value
-    ) -> [Key: Value] {
-        var one = one, two = two
-
-        // iterate over one, take the unique ones immediately, merge the ones that are also in two
-        for (key, oneValue) in one {
-            if let twoValue = two.removeValue(forKey: key) {
-                // two has a value for key
-                // merge the values and add that
-                one[key] = merge(oneValue, twoValue)
-            }
-            // else, was unique in one, keep it there
-        }
-
-        // now take the rest from two that haven't been removed (I wish there was a first party, faster implementation)
-        for (key, twoValue) in two {
-            one[key] = twoValue
-        }
-
-        // we're done
-        return one
     }
 }

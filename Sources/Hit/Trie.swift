@@ -12,8 +12,19 @@ private typealias SubTries = [String: TrieNode]
 
 struct TrieNode {
     let token: String
-    let endsWord: Bool
-    let subNodes: [String: TrieNode]
+    var endsWord: Bool
+    var subNodes: [String: TrieNode]
+
+    mutating func merge(with other: TrieNode) {
+        assert(token == other.token, "Mergeable tries need to have the same token")
+
+        endsWord = endsWord || other.endsWord
+        subNodes = subNodes.merging(other.subNodes) {
+            var result = $0
+            result.merge(with: $1)
+            return result
+        }
+    }
 }
 
 extension TrieNode {
@@ -48,19 +59,8 @@ extension TrieNode {
 
         // now merge them
         self = triesWithRoots.reduce(into: Trie.emptyTrie()) { (rollingTrie: inout TrieNode, thisTrie) in
-            rollingTrie = TrieNode.mergeTries(left: rollingTrie, right: thisTrie)
+            rollingTrie.merge(with: thisTrie)
         }
-    }
-
-    static func mergeTries(left: TrieNode, right: TrieNode) -> TrieNode {
-        assert(left.token == right.token, "Mergable tries need to have the same token")
-
-        let endsWord = left.endsWord || right.endsWord
-        let token = left.token // or right, they're the same string.
-        let subnodes = Dictionary.merge(left.subNodes, two: right.subNodes) { TrieNode.mergeTries(left: $0, right: $1) }
-
-        let result = TrieNode(token: token, endsWord: endsWord, subNodes: subnodes)
-        return result
     }
 }
 
@@ -109,10 +109,10 @@ public struct Trie {
             // compute tail - the whole prefix if this was an empty trie
             let prefixTail = emptyTrie ? prefix : String(prefix[prefixHeadRange.upperBound...])
 
-            // look into subnodes
-            for subnode in trie.subNodes.values {
-                if let foundSubnode = Trie.findTrieEndingPrefix(prefixTail, trie: subnode) {
-                    return foundSubnode
+            // look into `subNodes`
+            for subNode in trie.subNodes.values {
+                if let foundSubNode = Trie.findTrieEndingPrefix(prefixTail, trie: subNode) {
+                    return foundSubNode
                 }
             }
         }
@@ -121,11 +121,11 @@ public struct Trie {
 
     static func pullStringsFromTrie(_ trie: TrieNode) -> [String] {
         let token = trie.token
-        let subnodes = Array(trie.subNodes.values)
+        let subNodes = Array(trie.subNodes.values)
         let endsWord = trie.endsWord
 
-        // get substrings of subnodes
-        var substrings = subnodes.map { (subnode: TrieNode) -> [String] in
+        // get substrings of `subNodes`
+        var substrings = subNodes.map { (subnode: TrieNode) -> [String] in
             let substrings = Trie.pullStringsFromTrie(subnode)
             // prepend our token to each
             let withToken = substrings.map { token + $0 }
